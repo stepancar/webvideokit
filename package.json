@@ -4,7 +4,7 @@
   "description": "Set of video tools for web",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
@@ -22,6 +22,8 @@
   },
   "homepage": "https://github.com/stepancar/webvideokit#readme",
   "dependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@libav.js/variant-webcodecs": "^6.5.7",
+    "libavjs-webcodecs-bridge": "^0.3.2"
   }
 }
