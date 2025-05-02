@@ -1,0 +1,27 @@
+{
+  "name": "webvideokit",
+  "version": "0.0.1",
+  "description": "Set of video tools for web",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stepancar/webvideokit.git"
+  },
+  "keywords": [
+    "trascoding",
+    "video",
+    "processing"
+  ],
+  "author": "Stepan Mikhailiuk <istepancar@gmail.com> (https://github.com/stepancar)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/stepancar/webvideokit/issues"
+  },
+  "homepage": "https://github.com/stepancar/webvideokit#readme",
+  "dependencies": {
+    "typescript": "^5.8.3"
+  }
+}
