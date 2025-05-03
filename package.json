@@ -2,9 +2,15 @@
   "name": "webvideokit",
   "version": "0.0.1",
   "description": "Set of video tools for web",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rm -rf dist && tsc",
+    "prepare": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -21,7 +27,7 @@
     "url": "https://github.com/stepancar/webvideokit/issues"
   },
   "homepage": "https://github.com/stepancar/webvideokit#readme",
-  "dependencies": {
+  "devDependencies": {
     "typescript": "^5.8.3"
   }
 }
