@@ -1,20 +1,11 @@
-// transcoder.ts
-import { LibAV, Stream } from './types/libav.d.ts';
-import { LibAVWebCodecsBridge } from './types/libav-webcodecs-bridge.d.ts';
+import type {LibAV, Stream, Packet} from "@libav.js/types";
 
-export interface TranscoderProgressEvent {
-    stage: 'start' | 'processing' | 'complete' | 'error';
-    percent: number;
-    processedDuration: number;
-    totalDuration: number;
-    error?: string;
-}
 
 export class Transcoder extends EventTarget {
     private libav: LibAV;
 
-    private BufferStream = class extends ReadableStream<{ chunk: any; metadata: any }> {
-        private buf: ({ chunk: any; metadata: any } | null)[] = [];
+    private BufferStream = class extends ReadableStream<{chunk: any, metadata: any}> {
+        private buf: ({chunk: any, metadata: any} | null)[] = [];
         private res: ((value: unknown) => void) | null = null;
         private closed = false;
 
@@ -22,7 +13,7 @@ export class Transcoder extends EventTarget {
             super({
                 pull: async (controller) => {
                     while (!this.buf.length && !this.closed) {
-                        await new Promise((res) => (this.res = res));
+                        await new Promise(res => this.res = res);
                     }
                     if (this.closed) {
                         controller.close();
@@ -31,11 +22,11 @@ export class Transcoder extends EventTarget {
                     const next = this.buf.shift();
                     if (next !== null) controller.enqueue(next);
                     else controller.close();
-                },
+                }
             });
         }
 
-        push(next: { chunk: any; metadata: any } | null): void {
+        push(next: {chunk: any, metadata: any} | null): void {
             if (this.closed) return;
             this.buf.push(next);
             if (this.res) {
@@ -55,7 +46,7 @@ export class Transcoder extends EventTarget {
         }
     };
 
-    constructor({ libav }: { libav: LibAV }) {
+    constructor({libav}: {libav: any}) {
         super();
         this.libav = libav;
     }
@@ -68,7 +59,7 @@ export class Transcoder extends EventTarget {
                 packetToChunk: LibAVWebCodecsBridge.packetToEncodedVideoChunk,
                 configToStream: LibAVWebCodecsBridge.configToVideoStream,
                 Encoder: VideoEncoder,
-                chunkToPacket: LibAVWebCodecsBridge.encodedVideoChunkToPacket,
+                chunkToPacket: LibAVWebCodecsBridge.encodedVideoChunkToPacket
             },
             [this.libav.AVMEDIA_TYPE_AUDIO]: {
                 streamToConfig: LibAVWebCodecsBridge.audioStreamToConfig,
@@ -76,23 +67,17 @@ export class Transcoder extends EventTarget {
                 packetToChunk: LibAVWebCodecsBridge.packetToEncodedAudioChunk,
                 configToStream: LibAVWebCodecsBridge.configToAudioStream,
                 Encoder: AudioEncoder,
-                chunkToPacket: LibAVWebCodecsBridge.encodedAudioChunkToPacket,
-            },
+                chunkToPacket: LibAVWebCodecsBridge.encodedAudioChunkToPacket
+            }
         }[codecType];
     }
 
-    private async setupStreams({
-                                   istreams,
-                                   vc,
-                                   ac,
-                                   width,
-                                   height,
-                               }: {
-        istreams: Stream[];
-        vc: string;
-        ac: string;
-        width?: number;
-        height?: number;
+    private async setupStreams({istreams, vc, ac, width, height}: {
+        istreams: any[],
+        vc: string,
+        ac: string,
+        width?: number,
+        height?: number
     }): Promise<any> {
         const iToO: number[] = [];
         const decoders: any[] = [];
@@ -116,19 +101,15 @@ export class Transcoder extends EventTarget {
             try {
                 supported = await tools.Decoder.isConfigSupported(config);
             } catch (ex) {
-                console.error(ex);
             }
 
-            if (!supported || !supported.supported) {
-                console.warn(`Codec not supported for stream ${streamI}:`, config);
-                continue;
-            }
+            if (!supported || !supported.supported) continue;
 
             iToO[streamI] = decoders.length;
             const encConfig: any = {
                 codec: istream.codec_type === this.libav.AVMEDIA_TYPE_VIDEO ? vc : ac,
                 width: !width ? config.codedWidth : width,
-                height: !height ? config.codedHeight : height,
+                height: !height ? config.codedHeight : height
             };
 
             if (istream.codec_type === this.libav.AVMEDIA_TYPE_AUDIO) {
@@ -147,9 +128,9 @@ export class Transcoder extends EventTarget {
                 },
                 error: (error: string) => {
                     console.error(`Decoder error: ${error}`);
-                    this.dispatchEvent(new CustomEvent('error', { detail: { error } }));
+                    this.dispatchEvent(new CustomEvent('error', {detail: {error}}));
                     decoderStream.push(null);
-                },
+                }
             });
             decoder.configure(config);
 
@@ -157,17 +138,17 @@ export class Transcoder extends EventTarget {
             const encoder = new tools.Encoder({
                 output: (chunk: any, metadata: any) => {
                     try {
-                        encoderStream.push({ chunk, metadata });
+                        encoderStream.push({chunk, metadata});
                     } catch (e) {
                         console.error('Encoder output error:', e);
-                        this.dispatchEvent(new CustomEvent('error', { detail: { error: e } }));
+                        this.dispatchEvent(new CustomEvent('error', {detail: {error: e}}));
                     }
                 },
                 error: (error: string) => {
                     console.error(`Encoder error: ${error}`);
-                    this.dispatchEvent(new CustomEvent('error', { detail: { error } }));
+                    this.dispatchEvent(new CustomEvent('error', {detail: {error}}));
                     encoderStream.push(null);
-                },
+                }
             });
             encoder.configure(encConfig);
 
@@ -182,37 +163,22 @@ export class Transcoder extends EventTarget {
         }
 
         return {
-            iToO,
-            decoders,
-            decoderStreams,
-            packetToChunks,
-            encoders,
-            encoderStreams,
-            encoderReaders,
-            chunkToPackets,
-            ostreams,
+            iToO, decoders, decoderStreams, packetToChunks,
+            encoders, encoderStreams, encoderReaders, chunkToPackets, ostreams
         };
     }
 
-    private async demux({
-                            ifc,
-                            rpkt,
-                            iToO,
-                            istreams,
-                            decoders,
-                            decoderStreams,
-                            packetToChunks,
-                        }: {
-        ifc: any;
-        rpkt: any;
-        iToO: number[];
-        istreams: Stream[];
-        decoders: any[];
-        decoderStreams: any[];
-        packetToChunks: any[];
+    private async demux({ifc, rpkt, iToO, istreams, decoders, decoderStreams, packetToChunks}: {
+        ifc: any,
+        rpkt: any,
+        iToO: number[],
+        istreams: any[],
+        decoders: any[],
+        decoderStreams: any[],
+        packetToChunks: any[]
     }): Promise<void> {
         while (true) {
-            const [res, packets] = await this.libav.ff_read_frame_multi(ifc, rpkt, { limit: 1 });
+            const [res, packets] = await this.libav.ff_read_frame_multi(ifc, rpkt, {limit: 1});
             if (res !== -this.libav.EAGAIN && res !== 0 && res !== this.libav.AVERROR_EOF) {
                 console.error('Demux error:', res);
                 break;
@@ -227,8 +193,8 @@ export class Transcoder extends EventTarget {
                 for (const packet of packets[idx]) {
                     const chunk = p2c(packet, istreams[streamIdx]);
                     while (dec.decodeQueueSize) {
-                        await new Promise((res) => {
-                            dec.addEventListener('dequeue', res, { once: true });
+                        await new Promise(res => {
+                            dec.addEventListener("dequeue", res, {once: true});
                         });
                     }
                     dec.decode(chunk);
@@ -245,17 +211,12 @@ export class Transcoder extends EventTarget {
         }
     }
 
-    private getScaledWidthHeight({
-                                     originalWidth,
-                                     originalHeight,
-                                     targetWidth,
-                                     targetHeight,
-                                 }: {
-        originalWidth: number;
-        originalHeight: number;
-        targetWidth: number;
-        targetHeight: number;
-    }): { scaledWidth: number; scaledHeight: number } {
+    private getScaledWidthHeight({originalWidth, originalHeight, targetWidth, targetHeight}: {
+        originalWidth: number,
+        originalHeight: number,
+        targetWidth: number,
+        targetHeight: number
+    }): {scaledWidth: number, scaledHeight: number} {
         const originalAspectRatio = originalWidth / originalHeight;
         const targetAspectRatio = targetWidth / targetHeight;
         let scaledWidth, scaledHeight;
@@ -268,8 +229,9 @@ export class Transcoder extends EventTarget {
             scaledWidth = targetHeight * originalAspectRatio;
         }
 
-        return { scaledWidth, scaledHeight };
+        return {scaledWidth, scaledHeight};
     }
+
 
     private transformFrameToAspectRatio(
         frame: VideoFrame,
@@ -278,11 +240,11 @@ export class Transcoder extends EventTarget {
         targetWidth: number,
         targetHeight: number
     ): VideoFrame {
-        const { scaledWidth, scaledHeight } = this.getScaledWidthHeight({
+        const {scaledWidth, scaledHeight} = this.getScaledWidthHeight({
             originalWidth: frame.codedWidth,
             originalHeight: frame.codedHeight,
             targetWidth,
-            targetHeight,
+            targetHeight
         });
 
         const offsetX = (targetWidth - scaledWidth) / 2;
@@ -298,8 +260,8 @@ export class Transcoder extends EventTarget {
                 x: 0,
                 y: 0,
                 width: targetWidth,
-                height: targetHeight,
-            },
+                height: targetHeight
+            }
         };
 
         const newFrame = new VideoFrame(canvas, frameInit);
@@ -315,16 +277,16 @@ export class Transcoder extends EventTarget {
                              onProgress,
                              targetWidth,
                              targetHeight,
-                             keepAspectRatio,
+                             keepAspectRatio
                          }: {
-        decoders: any[];
-        decoderStreams: any[];
-        encoders: any[];
-        encoderStreams: InstanceType<Transcoder['BufferStream']>[];
-        onProgress?: (timestampSeconds: number) => void;
-        targetWidth?: number;
-        targetHeight?: number;
-        keepAspectRatio: boolean;
+        decoders: any[],
+        decoderStreams: any[],
+        encoders: any[],
+        encoderStreams: InstanceType<Transcoder['BufferStream']>[],
+        onProgress?: (timestampSeconds: number) => void,
+        targetWidth?: number,
+        targetHeight?: number,
+        keepAspectRatio: boolean
     }): Promise<void> {
         let transformationCanvas: OffscreenCanvas | null = null;
         let transformationCtx: OffscreenCanvasRenderingContext2D | null = null;
@@ -343,7 +305,7 @@ export class Transcoder extends EventTarget {
             const encoderStream = encoderStreams[i];
 
             while (true) {
-                const { done, value } = await decRdr.read();
+                const {done, value} = await decRdr.read();
                 if (done) break;
 
                 let frameToEncode = value;
@@ -352,7 +314,13 @@ export class Transcoder extends EventTarget {
                     const { canvas, ctx } = getTransformationCanvas();
 
                     if (canvas && ctx) {
-                        frameToEncode = this.transformFrameToAspectRatio(value, canvas, ctx, targetWidth, targetHeight);
+                        frameToEncode = this.transformFrameToAspectRatio(
+                            value,
+                            canvas,
+                            ctx,
+                            targetWidth,
+                            targetHeight
+                        );
                     }
                 }
 
@@ -372,21 +340,19 @@ export class Transcoder extends EventTarget {
         await Promise.all(encodePromises);
     }
 
-    private async getStarterPackets({
-                                        encoderReaders,
-                                        chunkToPackets,
-                                        ostreams,
-                                    }: {
-        encoderReaders: any[];
-        chunkToPackets: any[];
-        ostreams: any[];
+
+    private async getStarterPackets({encoderReaders, chunkToPackets, ostreams}: {
+        encoderReaders: any[],
+        chunkToPackets: any[],
+        ostreams: any[]
     }): Promise<any[]> {
         const starterPackets = [];
         for (let i = 0; i < encoderReaders.length; i++) {
             try {
-                const { done, value } = await encoderReaders[i].read();
+                const {done, value} = await encoderReaders[i].read();
                 if (done) continue;
-                starterPackets.push(await chunkToPackets[i](this.libav, value.chunk, value.metadata, ostreams[i], i));
+                starterPackets.push(await chunkToPackets[i](
+                    this.libav, value.chunk, value.metadata, ostreams[i], i));
             } catch (e) {
                 console.error('Starter packet error:', e);
             }
@@ -394,29 +360,19 @@ export class Transcoder extends EventTarget {
         return starterPackets;
     }
 
-    private async mux({
-                          starterPackets,
-                          ostreams,
-                          encoderReaders,
-                          chunkToPackets,
-                          outputFile,
-                          wpkt,
-                      }: {
-        starterPackets: any[];
-        ostreams: any[];
-        encoderReaders: any[];
-        chunkToPackets: any[];
-        outputFile: string;
-        wpkt: any;
-    }): Promise<{ ofc: any; pb: any; writePromise: Promise<void> }> {
-        const [ofc, , pb] = await this.libav.ff_init_muxer(
-            {
-                filename: outputFile,
-                open: true,
-                codecpars: true,
-            },
-            ostreams
-        );
+    private async mux({starterPackets, ostreams, encoderReaders, chunkToPackets, outputFile, wpkt}: {
+        starterPackets: any[],
+        ostreams: any[],
+        encoderReaders: any[],
+        chunkToPackets: any[],
+        outputFile: string,
+        wpkt: any
+    }): Promise<{ofc: any, pb: any, writePromise: Promise<void>}> {
+        const [ofc, , pb] = await this.libav.ff_init_muxer({
+            filename: outputFile,
+            open: true,
+            codecpars: true
+        }, ostreams);
 
         await this.libav.avformat_write_header(ofc, 0);
         await this.libav.ff_write_multi(ofc, wpkt, starterPackets);
@@ -430,32 +386,27 @@ export class Transcoder extends EventTarget {
                 const ostream = ostreams[i];
 
                 while (true) {
-                    const { done, value } = await encRdr.read();
+                    const {done, value} = await encRdr.read();
                     if (done) break;
 
                     writePromise = writePromise.then(async () => {
-                        const packet = await chunkToPacket(this.libav, value.chunk, value.metadata, ostream, i);
+                        const packet = await chunkToPacket(
+                            this.libav, value.chunk, value.metadata, ostream, i);
                         await this.libav.ff_write_multi(ofc, wpkt, [packet]);
                     });
                 }
             })();
         }
 
-        return { ofc, pb, writePromise };
+        return {ofc, pb, writePromise};
     }
 
-    private async cleanup({
-                              ifc,
-                              ofc,
-                              pb,
-                              rpkt,
-                              wpkt,
-                          }: {
-        ifc: any;
-        ofc: any;
-        pb: any;
-        rpkt: any;
-        wpkt: any;
+    private async cleanup({ifc, ofc, pb, rpkt, wpkt}: {
+        ifc: any,
+        ofc: any,
+        pb: any,
+        rpkt: any,
+        wpkt: any
     }): Promise<void> {
         try {
             await this.libav.av_write_trailer(ofc);
@@ -468,17 +419,14 @@ export class Transcoder extends EventTarget {
         }
     }
 
-    async transcode(
-        file: Blob,
-        options: {
-            containerType: string;
-            vc: string;
-            ac: string;
-            width?: number;
-            height?: number;
-            keepAspectRatio: boolean;
-        }
-    ): Promise<Uint8Array> {
+    async transcode(file: Blob, options: {
+        containerType: string,
+        vc: string,
+        ac: string,
+        width?: number,
+        height?: number,
+        keepAspectRatio: boolean
+    }): Promise<Uint8Array> {
         const rand_id = Math.random().toString(36).substring(2, 11);
         const input_libav = `input_${rand_id}`;
         const output_libav = `output_${rand_id}.${options.containerType}`;
@@ -488,39 +436,39 @@ export class Transcoder extends EventTarget {
         try {
             let processedDuration = 0;
 
-            const dispatchProgress = (
-                stage: 'start' | 'processing' | 'complete' | 'error',
-                additionalData: Partial<{
-                    percent: number;
-                    processedDuration: number;
-                    totalDuration: number;
-                    error?: string;
-                }> = {}
-            ) => {
-                this.dispatchEvent(
-                    new CustomEvent<TranscoderProgressEvent>('progress', {
-                        detail: {
-                            stage,
-                            percent: stage === 'start' ? 0 : stage === 'complete' ? 100 : Math.min(100, (processedDuration / totalDuration) * 100),
-                            processedDuration: stage === 'start' ? 0 : processedDuration,
-                            totalDuration,
-                            ...additionalData,
-                        },
-                    })
-                );
+            const dispatchProgress = (stage: 'start' | 'processing' | 'complete' | 'error', additionalData: Partial<{
+                percent: number,
+                processedDuration: number,
+                totalDuration: number,
+                error?: string
+            }> = {}) => {
+                this.dispatchEvent(new CustomEvent('progress', {
+                    detail: {
+                        stage,
+                        percent: stage === 'start' ? 0 :
+                            stage === 'complete' ? 100 :
+                                Math.min(100, (processedDuration / totalDuration) * 100),
+                        processedDuration: stage === 'start' ? 0 : processedDuration,
+                        totalDuration,
+                        ...additionalData
+                    }
+                }));
             };
 
             await this.libav.mkreadaheadfile(input_libav, file);
             const [ifc, istreams] = await this.libav.ff_init_demuxer_file(input_libav);
 
-            totalDuration = istreams.reduce((max: number, stream: Stream) => {
+            totalDuration = istreams.reduce((max: number, stream: any) => {
                 if (!stream || stream.duration === undefined) return max;
                 return Math.max(max, stream.duration);
             }, 0);
 
-            dispatchProgress('start', { totalDuration });
+            dispatchProgress('start', {totalDuration});
 
-            const [rpkt, wpkt] = await Promise.all([this.libav.av_packet_alloc(), this.libav.av_packet_alloc()]);
+            const [rpkt, wpkt] = await Promise.all([
+                this.libav.av_packet_alloc(),
+                this.libav.av_packet_alloc()
+            ]);
 
             const updateProgress = (timestampSeconds: number) => {
                 processedDuration = Math.max(processedDuration, timestampSeconds);
@@ -532,19 +480,18 @@ export class Transcoder extends EventTarget {
                 vc: options.vc,
                 ac: options.ac,
                 width: options.width,
-                height: options.height,
+                height: options.height
             });
 
-            if (!streams.decoders.length) throw new Error('No decodable streams found!');
+            if (!streams.decoders.length) throw new Error("No decodable streams found!");
 
             const demuxPromise = this.demux({
-                ifc,
-                rpkt,
+                ifc, rpkt,
                 iToO: streams.iToO,
                 istreams,
                 decoders: streams.decoders,
                 decoderStreams: streams.decoderStreams,
-                packetToChunks: streams.packetToChunks,
+                packetToChunks: streams.packetToChunks
             });
 
             const encodePromise = this.encode({
@@ -555,51 +502,44 @@ export class Transcoder extends EventTarget {
                 targetWidth: options.width,
                 targetHeight: options.height,
                 keepAspectRatio: options.keepAspectRatio,
-                onProgress: updateProgress,
+                onProgress: updateProgress
             });
 
             const starterPackets = await this.getStarterPackets({
                 encoderReaders: streams.encoderReaders,
                 chunkToPackets: streams.chunkToPackets,
-                ostreams: streams.ostreams,
+                ostreams: streams.ostreams
             });
 
-            const { ofc, pb, writePromise } = await this.mux({
+            const {ofc, pb, writePromise} = await this.mux({
                 starterPackets: starterPackets,
                 ostreams: streams.ostreams,
                 encoderReaders: streams.encoderReaders,
                 chunkToPackets: streams.chunkToPackets,
                 outputFile: output_libav,
-                wpkt,
+                wpkt
             });
 
             await Promise.all([demuxPromise, encodePromise]);
             await writePromise;
-            await this.cleanup({ ifc, ofc, pb, rpkt, wpkt });
+            await this.cleanup({ifc, ofc, pb, rpkt, wpkt});
 
             const result = await this.libav.readFile(output_libav);
 
             dispatchProgress('complete');
             return result;
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error('Transcoding error:', {
-                errorMessage,
-                inputFile: input_libav,
-                outputFile: output_libav,
-                options,
-            });
-            this.dispatchEvent(
-                new CustomEvent<TranscoderProgressEvent>('progress', {
-                    detail: {
-                        stage: 'error',
-                        error: errorMessage,
-                        percent: 0,
-                        processedDuration: 0,
-                        totalDuration: totalDuration || 0,
-                    },
-                })
-            );
+
+        } catch (error: any) {
+            this.dispatchEvent(new CustomEvent('progress', {
+                detail: {
+                    stage: 'error',
+                    error: error.message,
+                    percent: 0,
+                    processedDuration: 0,
+                    totalDuration: totalDuration || 0
+                }
+            }));
+            console.error("Transcoding error:", error);
             throw error;
         } finally {
             await this.libav.unlink(input_libav).catch(() => {});

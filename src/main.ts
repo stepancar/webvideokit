@@ -1,5 +1,4 @@
-import { LibAV } from './types/libav.d.ts';
-import { Transcoder, TranscoderProgressEvent } from './transcoder.js';
+import { Transcoder } from './transcoder.js';
 
 interface VideoFormat {
     videoCodec: string;
@@ -7,50 +6,52 @@ interface VideoFormat {
     mimeType: string;
 }
 
-type ContainerType = 'webm' | 'mp4' | 'mkv' | 'avi' | 'mov' | 'flv' | 'ts';
-
-const formats: Record<ContainerType, VideoFormat> = {
-    webm: {
-        videoCodec: 'vp09.00.10.08.03.1.1.1.0',
-        audioCodec: 'opus',
-        mimeType: 'video/webm',
-    },
-    mp4: {
-        videoCodec: 'hvc1.1.6.L123.B0',
-        audioCodec: 'mp4a.40.2',
-        mimeType: 'video/mp4',
-    },
-    mkv: {
-        videoCodec: 'avc1.42403e',
-        audioCodec: 'opus',
-        mimeType: 'video/x-matroska',
-    },
-    avi: {
-        videoCodec: 'mpeg4',
-        audioCodec: 'mp4a.40.2',
-        mimeType: 'video/x-msvideo',
-    },
-    mov: {
-        videoCodec: 'avc1.42403e',
-        audioCodec: 'mp4a.40.2',
-        mimeType: 'video/quicktime',
-    },
-    flv: {
-        videoCodec: 'avc1.42403e',
-        audioCodec: 'mp4a.40.2',
-        mimeType: 'video/x-flv',
-    },
-    ts: {
-        videoCodec: 'avc1.42403e',
-        audioCodec: 'mp4a.40.2',
-        mimeType: 'video/mp2t',
-    },
-};
+interface Formats {
+    [key: string]: VideoFormat;
+}
 
 interface Resolution {
     width: number;
     height: number;
 }
+
+const formats: Formats = {
+    "webm": {
+        videoCodec: "vp09.00.10.08.03.1.1.1.0",
+        audioCodec: "opus",
+        mimeType: "video/webm"
+    },
+    "mp4": {
+        videoCodec: "hvc1.1.6.L123.B0",
+        audioCodec: "mp4a.40.2",
+        mimeType: "video/mp4"
+    },
+    "mkv": {
+        videoCodec: "avc1.42403e",
+        audioCodec: "opus",
+        mimeType: "video/x-matroska"
+    },
+    "avi": {
+        videoCodec: "mpeg4",
+        audioCodec: "mp4a.40.2",
+        mimeType: "video/x-msvideo"
+    },
+    "mov": {
+        videoCodec: "avc1.42403e",
+        audioCodec: "mp4a.40.2",
+        mimeType: "video/quicktime"
+    },
+    "flv": {
+        videoCodec: "avc1.42403e",
+        audioCodec: "mp4a.40.2",
+        mimeType: "video/x-flv"
+    },
+    "ts": {
+        videoCodec: "avc1.42403e",
+        audioCodec: "mp4a.40.2",
+        mimeType: "video/mp2t"
+    },
+};
 
 function formatTime(seconds: number): string {
     const date = new Date(0);
@@ -80,30 +81,25 @@ async function getInputResolution(file: File): Promise<Resolution> {
 }
 
 async function main(): Promise<void> {
-    const fileInput = document.getElementById('file') as HTMLInputElement;
-    const inputBox = document.getElementById('input-box') as HTMLDivElement;
-    const progressContainer = document.getElementById('progress-container') as HTMLDivElement;
-    const downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
-    const containerSelect = document.getElementById('container') as HTMLSelectElement;
-    const resolutionSelect = document.getElementById('resolution') as HTMLSelectElement;
-    const aspectRatioCheckbox = document.getElementById('aspect-ratio') as HTMLInputElement;
-    const progressStatus = document.getElementById('progress-status') as HTMLDivElement;
-    const progressError = document.getElementById('progress-error') as HTMLDivElement;
-    const progressTime = document.getElementById('progress-time') as HTMLSpanElement;
-    const progressResolution = document.getElementById('progress-resolution') as HTMLSpanElement;
-    const progressBar = document.querySelector('.progress-bar') as HTMLDivElement;
-    const progressPercent = document.querySelector('.progress-percent') as HTMLDivElement;
+    const fileInput = document.getElementById("file") as HTMLInputElement;
+    const inputBox = document.getElementById("input-box") as HTMLDivElement;
+    const progressContainer = document.getElementById("progress-container") as HTMLDivElement;
+    const downloadBtn = document.getElementById("download-btn") as HTMLButtonElement;
+    const containerSelect = document.getElementById("container") as HTMLSelectElement;
+    const resolutionSelect = document.getElementById("resolution") as HTMLSelectElement;
+    const aspectRatioCheckbox = document.getElementById("aspect-ratio") as HTMLInputElement;
+    const progressStatus = document.getElementById("progress-status") as HTMLDivElement;
+    const progressError = document.getElementById("progress-error") as HTMLDivElement;
+    const progressTime = document.getElementById("progress-time") as HTMLSpanElement;
+    const progressResolution = document.getElementById("progress-resolution") as HTMLSpanElement;
+    const progressBar = document.querySelector(".progress-bar") as HTMLDivElement;
+    const progressPercent = document.querySelector(".progress-percent") as HTMLDivElement;
 
     let resultBlobUrl: string | null = null;
-    let libav: LibAV | null = null;
-
-    window.addEventListener('beforeunload', async () => {
-        if (libav) await libav.terminate();
-    });
 
     downloadBtn.onclick = () => {
         if (resultBlobUrl) {
-            const a = document.createElement('a');
+            const a = document.createElement("a");
             a.href = resultBlobUrl;
             a.download = `converted.${containerSelect.value}`;
             document.body.appendChild(a);
@@ -115,8 +111,8 @@ async function main(): Promise<void> {
     fileInput.addEventListener('change', async function () {
         if (!fileInput.files || fileInput.files.length === 0) return;
 
-        inputBox.style.display = 'none';
-        progressContainer.style.display = 'block';
+        inputBox.style.display = "none";
+        progressContainer.style.display = "block";
 
         const file = fileInput.files[0];
         const isAspectSaveChecked = aspectRatioCheckbox.checked;
@@ -124,9 +120,9 @@ async function main(): Promise<void> {
         try {
             const { width: inputWidth, height: inputHeight } = await getInputResolution(file);
 
-            const containerType = containerSelect.value as ContainerType;
-            const resolutionParts = resolutionSelect.value.split('x');
-            const isSourceResolution = resolutionParts[0] === 'src';
+            const containerType = containerSelect.value;
+            const resolutionParts = resolutionSelect.value.split("x");
+            const isSourceResolution = resolutionParts[0] === "src";
 
             const format = formats[containerType];
             if (!format) {
@@ -143,13 +139,16 @@ async function main(): Promise<void> {
             }
 
             progressResolution.textContent = `${width}x${height}`;
-            progressStatus.textContent = 'Initializing transcoder...';
+            progressStatus.textContent = "Initializing transcoder...";
 
-            libav = await LibAV.LibAV({ noworker: true });
+            const libav = await LibAV.LibAV({ noworker: true });
             const transcoder = new Transcoder({ libav });
 
+            window.addEventListener('beforeunload', async () => {
+                if (libav) await libav.terminate();
+            });
+
             const progressHandler = (e: Event) => {
-                if (!(e instanceof CustomEvent)) return;
                 const event = e as CustomEvent<TranscoderProgressEvent>;
                 const { stage, percent, processedDuration, totalDuration, error } = event.detail;
 
@@ -159,31 +158,31 @@ async function main(): Promise<void> {
                 switch (stage) {
                     case 'start':
                         progressTime.textContent = `00:00:00 / ${formatTime(totalDuration)}`;
-                        progressStatus.textContent = 'Starting transcoding...';
+                        progressStatus.textContent = "Starting transcoding...";
                         break;
                     case 'processing':
                         progressTime.textContent = `${formatTime(processedDuration)} / ${formatTime(totalDuration)}`;
-                        progressStatus.textContent = 'Transcoding in progress...';
+                        progressStatus.textContent = "Transcoding in progress...";
                         break;
                     case 'complete':
-                        progressStatus.textContent = 'Transcoding completed!';
-                        progressStatus.style.color = '#00a854';
-                        progressBar.style.background = '#00d97e';
-                        downloadBtn.style.display = 'block';
+                        progressStatus.textContent = "Transcoding completed!";
+                        progressStatus.style.color = "#00a854";
+                        progressBar.style.background = "#00d97e";
+                        downloadBtn.style.display = "block";
                         break;
                     case 'error':
                         progressError.textContent = error || 'Unknown error';
-                        progressError.style.display = 'block';
-                        progressStatus.textContent = 'Transcoding failed!';
-                        progressStatus.style.color = '#e63757';
-                        progressBar.style.background = '#e63757';
+                        progressError.style.display = "block";
+                        progressStatus.textContent = "Transcoding failed!";
+                        progressStatus.style.color = "#e63757";
+                        progressBar.style.background = "#e63757";
                         break;
                 }
             };
 
             transcoder.addEventListener('progress', progressHandler as EventListener);
 
-            console.time('transcode');
+            console.time("transcode");
             const output = await transcoder.transcode(file, {
                 containerType,
                 vc: format.videoCodec,
@@ -197,14 +196,14 @@ async function main(): Promise<void> {
 
             transcoder.removeEventListener('progress', progressHandler as EventListener);
         } catch (error) {
-            console.error('Transcoding failed:', error);
+            console.error("Transcoding failed:", error);
             progressError.textContent = error instanceof Error ? error.message : String(error);
-            progressError.style.display = 'block';
-            progressStatus.textContent = 'Transcoding failed!';
-            progressStatus.style.color = '#e63757';
-            progressBar.style.background = '#e63757';
+            progressError.style.display = "block";
+            progressStatus.textContent = "Transcoding failed!";
+            progressStatus.style.color = "#e63757";
+            progressBar.style.background = "#e63757";
         } finally {
-            console.timeEnd('transcode');
+            console.timeEnd("transcode");
         }
     });
 }

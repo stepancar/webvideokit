@@ -4,7 +4,9 @@
   "description": "Set of video tools for web",
   "main": "index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "start": "http-server . -p 8080 -c-1",
+    "dev": "tsc --watch & http-server . -p 8080 -c-1"
   },
   "repository": {
     "type": "git",
@@ -22,8 +24,12 @@
   },
   "homepage": "https://github.com/stepancar/webvideokit#readme",
   "dependencies": {
-    "typescript": "^5.8.3",
     "@libav.js/variant-webcodecs": "^6.5.7",
-    "libavjs-webcodecs-bridge": "^0.3.2"
+    "libavjs-webcodecs-bridge": "^0.3.2",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@libav.js/types": "^6.5.7",
+    "http-server": "^14.1.1"
   }
 }
