@@ -2,7 +2,11 @@
   "name": "webvideokit",
   "version": "0.0.1",
   "description": "Set of video tools for web",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "http-server . -p 8080 -c-1",
@@ -25,10 +29,10 @@
   "homepage": "https://github.com/stepancar/webvideokit#readme",
   "dependencies": {
     "@libav.js/variant-webcodecs": "^6.5.7",
-    "libavjs-webcodecs-bridge": "^0.3.2",
-    "typescript": "^5.8.3"
+    "libavjs-webcodecs-bridge": "^0.3.2"
   },
   "devDependencies": {
+    "typescript": "^5.8.3"
     "@libav.js/types": "^6.5.7",
     "http-server": "^14.1.1"
   }
